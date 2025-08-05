@@ -1,0 +1,73 @@
+#include <Wire.h>
+#include <Adafruit_GFX.h>
+#include <Adafruit_SSD1306.h>
+#include <math.h>
+
+#define OLED_RESET -1
+#define SCREEN_ADDRESS 0x3C
+Adafruit_SSD1306 display(128, 64, &Wire, OLED_RESET);
+
+// MQ-2 Sensor
+const int sensorPin = A0;
+#define RL 10
+#define Ro 20
+#define m -0.263
+#define b 0.42
+
+// Buzzer
+#define buzzerPin 9
+#define thresholdPPM 300
+
+void setup() {
+  Serial.begin(9600);
+  Serial.println("MQ2 warming up!");
+  delay(20000); // Warm-up
+
+  pinMode(sensorPin, INPUT);
+  pinMode(buzzerPin, OUTPUT);
+
+  if (!display.begin(SSD1306_SWITCHCAPVCC, SCREEN_ADDRESS)) {
+    Serial.println(F("OLED failed"));
+    while (1);
+  }
+
+  display.clearDisplay();
+  display.setTextColor(WHITE);
+  display.setTextSize(1);
+  display.setCursor(0, 0);
+  display.println("System Ready...");
+  display.display();
+  delay(2000);
+}
+
+void loop() {
+  float sensorValue = analogRead(sensorPin);
+  float VRL = sensorValue * (5.0 / 1023.0);
+  float Rs = ((5.0 * RL) / VRL) - RL;
+  float ratio = Rs / Ro;
+  float ppm = pow(10, ((log10(ratio) - b) / m));
+
+  Serial.print("Analog: "); Serial.print(sensorValue);
+  Serial.print(" | PPM: "); Serial.println(ppm);
+
+  display.clearDisplay();
+  display.setTextSize(1);
+  display.setCursor(0, 0);
+  display.print("Gas sensor data:");
+  display.setCursor(0, 16);
+  display.print("PPM: ");
+  display.println(ppm, 2);
+
+  if (ppm > thresholdPPM) {
+    display.setCursor(0, 32);
+    display.println("Gas is detected!");
+    digitalWrite(buzzerPin, HIGH);
+  } else {
+    display.setCursor(0, 32);
+    display.println("Safe");
+    digitalWrite(buzzerPin, LOW);
+  }
+
+  display.display();
+  delay(1000);
+}
